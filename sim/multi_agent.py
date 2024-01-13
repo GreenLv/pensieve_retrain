@@ -93,7 +93,7 @@ def calculate_entropy_weight(epoch):
     elif epoch < 90000:
         entropy_weight = 0.5
     else:
-        entropy_weight = 0.01
+        entropy_weight = 0.1
     """
 
     # initial entropy weight is 1, then decay to 0.1 in 100000 iterations
@@ -229,7 +229,7 @@ def central_agent(net_params_queues, exp_queues):
                     SUMMARY_DIR + "/nn_model_ep_" + str(epoch) + ".ckpt", 
                     test_log_file)
 
-                print("Entropy weight: " + str(entropy_weight))
+                print("[Epoch: " + str(epoch) + "] Entropy weight: " + str(entropy_weight))
 
 
 def agent(agent_id, all_cooked_time, all_cooked_bw, net_params_queue, exp_queue):
