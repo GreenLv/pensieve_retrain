@@ -235,6 +235,7 @@ def main():
 			# plt.show()
 			plt.savefig('./per_trace.png', bbox_inches='tight')
 			plt.close()
+			break # only check one trace
 
 
 if __name__ == '__main__':
