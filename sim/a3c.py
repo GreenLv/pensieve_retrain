@@ -43,12 +43,15 @@ class ActorNetwork(object):
         # This gradient will be provided by the critic network
         self.act_grad_weights = tf.placeholder(tf.float32, [None, 1])
 
+        # dynamic entropy weight
+        self.entropy_weight = tf.placeholder(tf.float32)
+
         # Compute the objective (log action_vector and entropy)
         self.obj = tf.reduce_sum(tf.multiply(
                        tf.log(tf.reduce_sum(tf.multiply(self.out, self.acts),
                                             reduction_indices=1, keep_dims=True)),
                        -self.act_grad_weights)) \
-                   + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
+                   + self.entropy_weight * tf.reduce_sum(tf.multiply(self.out,
                                                            tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
@@ -93,11 +96,12 @@ class ActorNetwork(object):
             self.inputs: inputs
         })
 
-    def get_gradients(self, inputs, acts, act_grad_weights):
+    def get_gradients(self, inputs, acts, act_grad_weights, entropy_weight):
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.acts: acts,
-            self.act_grad_weights: act_grad_weights
+            self.act_grad_weights: act_grad_weights,
+            self.entropy_weight: entropy_weight
         })
 
     def apply_gradients(self, actor_gradients):
@@ -215,7 +219,7 @@ class CriticNetwork(object):
         })
 
 
-def compute_gradients(s_batch, a_batch, r_batch, terminal, actor, critic):
+def compute_gradients(s_batch, a_batch, r_batch, terminal, actor, critic, entropy_weight):
     """
     batch of s, a, r is from samples in a sequence
     the format is in np.array([batch_size, s/a/r_dim])
@@ -239,7 +243,7 @@ def compute_gradients(s_batch, a_batch, r_batch, terminal, actor, critic):
 
     td_batch = R_batch - v_batch
 
-    actor_gradients = actor.get_gradients(s_batch, a_batch, td_batch)
+    actor_gradients = actor.get_gradients(s_batch, a_batch, td_batch, entropy_weight)
     critic_gradients = critic.get_gradients(s_batch, R_batch)
 
     return actor_gradients, critic_gradients, td_batch

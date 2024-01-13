@@ -76,6 +76,34 @@ def testing(epoch, nn_model, log_file):
     log_file.flush()
 
 
+def calculate_entropy_weight(epoch):
+
+    # entropy weight decay with iteration
+    """
+    if epoch < 20000:
+        entropy_weight = 5
+    elif epoch < 40000:
+        entropy_weight = 4
+    elif epoch < 60000:
+        entropy_weight = 3
+    elif epoch < 70000:
+        entropy_weight = 2
+    elif epoch < 80000:
+        entropy_weight = 1
+    elif epoch < 90000:
+        entropy_weight = 0.5
+    else:
+        entropy_weight = 0.01
+    """
+
+    # initial entropy weight is 1, then decay to 0.1 in 100000 iterations
+    entropy_weight = 1 - (epoch / 10000) * 0.09
+    if entropy_weight < 0.1:
+        entropy_weight = 0.1
+
+    return entropy_weight
+
+
 def central_agent(net_params_queues, exp_queues):
 
     assert len(net_params_queues) == NUM_AGENTS
@@ -135,6 +163,9 @@ def central_agent(net_params_queues, exp_queues):
             actor_gradient_batch = []
             critic_gradient_batch = []
 
+            # decay entropy_weight with iteration (from 1 to 0.1) 
+            entropy_weight = calculate_entropy_weight(epoch)
+
             for i in xrange(NUM_AGENTS):
                 s_batch, a_batch, r_batch, terminal, info = exp_queues[i].get()
 
@@ -143,7 +174,7 @@ def central_agent(net_params_queues, exp_queues):
                         s_batch=np.stack(s_batch, axis=0),
                         a_batch=np.vstack(a_batch),
                         r_batch=np.vstack(r_batch),
-                        terminal=terminal, actor=actor, critic=critic)
+                        terminal=terminal, actor=actor, critic=critic, entropy_weight=entropy_weight)
 
                 actor_gradient_batch.append(actor_gradient)
                 critic_gradient_batch.append(critic_gradient)
@@ -197,6 +228,8 @@ def central_agent(net_params_queues, exp_queues):
                 testing(epoch, 
                     SUMMARY_DIR + "/nn_model_ep_" + str(epoch) + ".ckpt", 
                     test_log_file)
+
+                print("Entropy weight: " + str(entropy_weight))
 
 
 def agent(agent_id, all_cooked_time, all_cooked_bw, net_params_queue, exp_queue):
