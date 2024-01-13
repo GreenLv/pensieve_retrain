@@ -93,6 +93,7 @@ def main():
                      - REBUF_PENALTY * rebuf \
                      - SMOOTH_PENALTY * np.abs(VIDEO_BIT_RATE[bit_rate] -
                                                VIDEO_BIT_RATE[last_bit_rate]) / M_IN_K
+            reward /= 10.   # scaling reward
 
             r_batch.append(reward)
 
@@ -120,9 +121,9 @@ def main():
             # this should be S_INFO number of terms
             state[0, -1] = VIDEO_BIT_RATE[bit_rate] / float(np.max(VIDEO_BIT_RATE))  # last quality
             state[1, -1] = buffer_size / BUFFER_NORM_FACTOR  # 10 sec
-            state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K  # kilo byte / ms
+            state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K / 10.  # 10 kilo byte / ms
             state[3, -1] = float(delay) / M_IN_K / BUFFER_NORM_FACTOR  # 10 sec
-            state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K  # mega byte
+            state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K / 10.  # 10 mega byte
             state[5, -1] = np.minimum(video_chunk_remain, CHUNK_TIL_VIDEO_END_CAP) / float(CHUNK_TIL_VIDEO_END_CAP)
 
             action_prob = actor.predict(np.reshape(state, (1, S_INFO, S_LEN)))
