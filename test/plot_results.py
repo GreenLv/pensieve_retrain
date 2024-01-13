@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,7 +20,8 @@ SMOOTH_P = 1
 COLOR_MAP = plt.cm.jet #nipy_spectral, Set1,Paired 
 SIM_DP = 'sim_dp'
 #SCHEMES = ['BB', 'RB', 'FIXED', 'FESTIVE', 'BOLA', 'RL',  'sim_rl', SIM_DP]
-SCHEMES = ['sim_rl', SIM_DP]
+# SCHEMES = ['sim_rl', SIM_DP]
+SCHEMES = ['sim_rl', "sim_bb"]
 
 def main():
 	time_all = {}
@@ -43,7 +46,7 @@ def main():
 		bw = []
 		reward = []
 
-		print log_file
+		# print log_file
 
 		with open(RESULTS_FOLDER + log_file, 'rb') as f:
 			if SIM_DP in log_file:
@@ -153,7 +156,9 @@ def main():
 	
 	plt.ylabel('total reward')
 	plt.xlabel('trace index')
-	plt.show()
+	# plt.show()
+	plt.savefig('./mean_rewards.png')
+	plt.close()
 
 	# ---- ---- ---- ----
 	# CDF 
@@ -175,7 +180,9 @@ def main():
 	
 	plt.ylabel('CDF')
 	plt.xlabel('total reward')
-	plt.show()
+	# plt.show()
+	plt.savefig('./reward_cdf.png')
+	plt.close()
 
 
 	# ---- ---- ---- ----
@@ -222,7 +229,9 @@ def main():
 				SCHEMES_REW.append(scheme + ': ' + str(np.sum(raw_reward_all[scheme][l][1:VIDEO_LEN])))
 
 			ax.legend(SCHEMES_REW, loc=9, bbox_to_anchor=(0.5, -0.1), ncol=int(np.ceil(len(SCHEMES) / 2.0)))
-			plt.show()
+			# plt.show()
+			plt.savefig('./per_trace.png')
+			plt.close()
 
 
 if __name__ == '__main__':
