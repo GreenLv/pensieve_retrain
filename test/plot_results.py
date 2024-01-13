@@ -92,7 +92,10 @@ def main():
 					bit_rate.append(int(parse[1]))
 					buff.append(float(parse[2]))
 					bw.append(float(parse[4]) / float(parse[5]) * BITS_IN_BYTE * MILLISEC_IN_SEC / M_IN_B)
-					reward.append(float(parse[6]))
+					if 'sim_rl' in log_file:
+						reward.append(float(parse[6]) * 10)
+					else:
+						reward.append(float(parse[6]))
 
 		if SIM_DP in log_file:
 			time_ms = time_ms[::-1]
@@ -157,7 +160,7 @@ def main():
 	plt.ylabel('total reward')
 	plt.xlabel('trace index')
 	# plt.show()
-	plt.savefig('./mean_rewards.png')
+	plt.savefig('./mean_rewards.png', bbox_inches='tight')
 	plt.close()
 
 	# ---- ---- ---- ----
@@ -181,7 +184,7 @@ def main():
 	plt.ylabel('CDF')
 	plt.xlabel('total reward')
 	# plt.show()
-	plt.savefig('./reward_cdf.png')
+	plt.savefig('./reward_cdf.png', bbox_inches='tight')
 	plt.close()
 
 
@@ -230,7 +233,7 @@ def main():
 
 			ax.legend(SCHEMES_REW, loc=9, bbox_to_anchor=(0.5, -0.1), ncol=int(np.ceil(len(SCHEMES) / 2.0)))
 			# plt.show()
-			plt.savefig('./per_trace.png')
+			plt.savefig('./per_trace.png', bbox_inches='tight')
 			plt.close()
 
 
