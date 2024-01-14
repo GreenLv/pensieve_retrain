@@ -1,39 +1,19 @@
-# Pensieve
-Pensieve is a system that generates adaptive bitrate algorithms using reinforcement learning.
-http://web.mit.edu/pensieve/
+# Pensieve Retraining
+This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
-### Prerequisites
-- Install prerequisites (tested with Ubuntu 16.04, Tensorflow v1.1.0, TFLearn v0.3.1 and Selenium v2.39.0)
-```
-python setup.py
-```
+- Support for **dynamic entropy weight** $\beta$, i.e., decaying from 1 to 0.1 over $10^5$ iterations. This is implemented by modifying `sim/a3c.py` and `sim\multi_agent.py`. Refer to: [Why the result is not better than MPC? · Issue #11 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/11).
+- Train and test Pensieve under **higher video bitrate** (up to 4K resolution encoded at 40Mbps). Specifically,`VIDEO_BIT_RATE`, `REBUF_PENALTY`, and chunk size information in Pensieve, BBA , and RobustMPC are modified. The video ([Big Buck Bunny](https://peach.blender.org/)) is provided in `sim/` and `test/`.
+- **Normalize states and rewards** for higher network bandwidth (e.g., in 5G networks) by an order of magnitude. Refer to: [godka/pensieve-5G: Pensieve for 5G datasets](https://github.com/godka/pensieve-5G).
+- Carefully split the dataset into training and test sets in a repeatable way.
+- Fix some bugs in the original code.
 
-### Training
-- To train a new model, put training data in `sim/cooked_traces` and testing data in `sim/cooked_test_traces`, then in `sim/` run `python get_video_sizes.py` and then run
-```
-python multi_agent.py
-```
+Please see the commits after `0f1aa30389fb1798e10c3828cd6bcbed85672021` (2024-01-13 UTC+8) for details. 
 
-The reward signal and meta-setting of video can be modified in `multi_agent.py` and `env.py`. More details can be found in `sim/README.md`.
+Note: This repository only reports single-video simulation results. Potential issues may exist in the multi-video scenario, emulation, or real-world deployment, where the related code has not been modified . 
 
-### Testing
-- To test the trained model in simulated environment, first copy over the model to `test/models` and modify the `NN_MODEL` field of `test/rl_no_training.py` , and then in `test/` run `python get_video_sizes.py` and then run 
-```
-python rl_no_training.py
-```
 
-Similar testing can be performed for buffer-based approach (`bb.py`), mpc (`mpc.py`) and offline-optimal (`dp.cc`) in simulations. More details can be found in `test/README.md`.
 
-### Running experiments over Mahimahi
-- To run experiments over mahimahi emulated network, first copy over the trained model to `rl_server/results` and modify the `NN_MODEL` filed of `rl_server/rl_server_no_training.py`, and then in `run_exp/` run
-```
-python run_all_traces.py
-```
-This script will run all schemes (buffer-based, rate-based, Festive, BOLA, fastMPC, robustMPC and Pensieve) over all network traces stored in `cooked_traces/`. The results will be saved to `run_exp/results` folder. More details can be found in `run_exp/README.md`.
+### Training and testing
+Pensieve's original training and testing procedure remains changed. Specifically
 
-### Real-world experiments
-- To run real-world experiments, first setup a server (`setup.py` automatically installs an apache server and put needed files in `/var/www/html`). Then, copy over the trained model to `rl_server/results` and modify the `NN_MODEL` filed of `rl_server/rl_server_no_training.py`. Next, modify the `url` field in `real_exp/run_video.py` to the server url. Finally, in `real_exp/` run
-```
-python run_exp.py
-```
-The results will be saved to `real_exp/results` folder. More details can be found in `real_exp/README.md`.
+
