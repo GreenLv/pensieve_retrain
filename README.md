@@ -7,7 +7,7 @@ This repository provides a reproducible method for retraining the [Pensieve](htt
 - Carefully split the dataset into training and test sets in a repeatable way.
 - Fix some bugs in the original code.
 
-Please see the commits after `668f7ef1c3be7656d878771591ec93a865f4b1e0` ( Jan 13, 2024) for details. 
+Please see the commits after `668f7ef1c3be7656d878771591ec93a865f4b1e0` (Jan 13, 2024) for details. 
 
 Note: This repository only reports single-video simulation results. Potential issues may exist in the multi-video scenario, emulation, or real-world deployment, where the related code has not been modified . 
 
