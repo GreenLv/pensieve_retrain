@@ -27,7 +27,7 @@ Only files in three folders are changed:
 
 
 
-### Training and testing methodology
+## Training and testing methodology
 Pensieve's original training and testing procedure remains unchanged. Specifically, I used a TensorFlow v1.1.0 docker to run the programs. Best practices were provided by the authors:
 
 > `Ubuntu 16.04, Tensorflow v1.1.0, TFLearn v0.3.1 and Selenium v2.39.0`
