@@ -1,7 +1,7 @@
 # Pensieve Retraining
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
-- Support for **dynamic entropy weight** $\beta$, i.e., linearly decaying from 1 to 0.1 over $10^5$ iterations. This is implemented by modifying `sim/a3c.py` and `sim\multi_agent.py`. Refer to: [Why the result is not better than MPC? · Issue #11 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/11).
+- Support for **dynamic entropy weight**, i.e., linearly decaying $\beta$ from 1 to 0.1 over $10^5$ iterations. This is implemented by modifying `sim/a3c.py` and `sim/multi_agent.py`. Refer to: [Why the result is not better than MPC? · Issue #11 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/11).
 - Train and test Pensieve under **higher video bitrate** (up to 4K resolution encoded at 40Mbps). Specifically,`VIDEO_BIT_RATE`, `REBUF_PENALTY`, and chunk size information in Pensieve, BBA , and RobustMPC are modified. The video ([Big Buck Bunny](https://peach.blender.org/)) is provided in `sim/` and `test/`.
 - **Normalize states and rewards** for higher network bandwidth (e.g., in 5G networks) by an order of magnitude. Refer to: [godka/pensieve-5G: Pensieve for 5G datasets](https://github.com/godka/pensieve-5G).
 - Carefully split the dataset into training and test sets in a repeatable way.
