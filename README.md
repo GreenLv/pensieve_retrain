@@ -9,7 +9,7 @@ This repository provides a reproducible method for retraining the [Pensieve](htt
 
 Please see the commits after `668f7ef1c3be7656d878771591ec93a865f4b1e0` (Jan 13, 2024) for details. 
 
-Note: This repository only reports single-video simulation results. Potential issues may exist in the multi-video scenario, emulation, or real-world deployment, where the related code has not been modified . 
+Note: This repository only reports single-video simulation results. Potential issues may exist in the multi-video scenario, emulation, or real-world deployment, where the related code has not been modified. 
 
 
 
@@ -58,7 +58,7 @@ Raw traces are publicly available: (however, the unit may be inconsistent)
 
 
 
-When retraining the Pensieve model, the dataset is split into training and test sets at a ratio of 0.8:0.2. This split is _random and uniform_, depending on each type in each class of all traces. See `retrained_info\data_preprocess\split_trian_test.py` for details.
+When retraining the Pensieve model, the dataset is split into training and test sets at a ratio of 0.8:0.2. This split is _random and uniform_, depending on each type in each class of all traces. See `retrained_info/data_preprocess/split_trian_test.py` for details.
 
 
 
