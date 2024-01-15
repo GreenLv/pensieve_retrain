@@ -32,7 +32,7 @@ os.system("sudo apt-get -y install python-pip python-dev")
 os.system("sudo pip install tensorflow")
 
 # tflearn
-os.system("sudo pip install tflearn")
+os.system("sudo pip install tflearn==0.3.2")
 os.system("sudo apt-get -y install python-h5py")
 os.system("sudo apt-get -y install python-scipy")
 
