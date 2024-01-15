@@ -20,7 +20,7 @@ Only files in three folders are changed:
 - `sim/`: dynamic entropy weight; new video; states and rewards normalization.
 - `test/`: new video; states and rewards normalization.
 - `retrained_info/`: information related to the retrained model, including:
-  - `data_preprocess/`: scripts to filter and split the dataset (network traces)
+  - `data_preprocess/`: network traces; scripts to filter and split the dataset (network traces)
   - `retrained_model/`: retrained model files
   - `training_info/`: training curves about the reward and TD loss; the central agent log
   - `test_results/`: performance of the retrained model versus BBA and RobustMPC
@@ -36,7 +36,7 @@ Pensieve's original training and testing procedure remains unchanged. Specifical
 
 
 
-**Network traces.** Four classes of wireless bandwidth traces are used in training and testing, collected in 3G, 4G, 5G, and Wi-Fi networks. Each class of traces is further divided into several types, depending on the location or mobility. I further filter out traces  (see `retrained_info/data_preprocess/filtered_traces.py`) whose average bandwidth is less than 1.5Mbps (because the lowest video bitrate is 1Mbps), mainly in the Norway FCC dataset. 
+**Network traces.** Four classes of wireless bandwidth traces are used in training and testing, collected in 3G, 4G, 5G, and Wi-Fi networks. Each class of traces is further divided into several types, depending on the location or mobility. I further filter out traces  (see `retrained_info/data_preprocess/filtered_traces.py`) whose average bandwidth is less than 1.5Mbps (because the lowest video bitrate is 1Mbps), mainly in the Norway FCC dataset. Final traces are provided in `retrained_info/data_preprocess/network_traces.zip`. 
 
 |                 | Count | Range of Average Bandwidth (Mbps) |
 | --------------- | ----- | --------------------------------- |
@@ -45,7 +45,7 @@ Pensieve's original training and testing procedure remains unchanged. Specifical
 | Lumos5G         | 121   | 66.49~906.09                      |
 | Solis Wi-Fi     | 80    | 7.28~73.16                        |
 
-All traces are publicly available: (however, the unit may be inconsistent)
+Raw traces are publicly available: (however, the unit may be inconsistent)
 
 - Norway FCC (3G)  : [transys-project/pitree/traces.zip](https://github.com/transys-project/pitree/blob/master/traces.zip)
 - Lumos4G: [SIGCOMM21-5G/artifact/Video-Streaming/Network-Traces/Lumous5G/4G](https://github.com/SIGCOMM21-5G/artifact/tree/main/Video-Streaming/Network-Traces/Lumous5G/4G)
