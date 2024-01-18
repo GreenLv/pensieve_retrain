@@ -58,8 +58,18 @@ Raw traces are publicly available: (however, the unit may be inconsistent)
 
 
 
-When retraining the Pensieve model, the dataset is split into training and test sets at a ratio of 0.8:0.2. This split is _random and uniform_, depending on each type in each class of all traces. See `retrained_info/data_preprocess/split_trian_test.py` for details.
+**Dataset splitting.** When retraining the Pensieve model, the dataset is split into training and test sets at a ratio of 0.8:0.2. This split is _random and uniform_, depending on each type in each class of all traces. See `retrained_info/data_preprocess/split_trian_test.py` for details. 
 
+Training and test set distribution (average trace bandwidth):
+|             | Count | Avg (Mbps) | Std (Mbps) | Min (Mbps) | Max (Mbps) |
+| ----------- | ----- | ----------- | ----------- | ----------- | ----------- |
+| Training Set | 410   | 128.91      | 203.60 | 1.51 | 749.23 |
+| Test Set    | 100   | 139.95      | 222.06 | 1.54 | 906.09 |
+
+
+<p align="left">
+    <img src="retrained_info/data_preprocess/cmp_train_and_test_bw.png" width="40%">
+</p>
 
 
 ## Retrained model information
