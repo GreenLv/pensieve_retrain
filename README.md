@@ -36,8 +36,10 @@ Pensieve's original training and testing procedure remains unchanged. Specifical
 
 
 
-**Decaying entropy weight.** As described in the Pensieve paper, "the entropy factor $\beta$ is controlled to decay from 1 to 0.1 over $10^5$ iterations". However,  this value is constant during training in the original code (`ENTROPY_WEIGHT = 0.5` in `sim/a3c.py`). I used a stepwise method to decrease the entropy weight (by 0.09 every 10000 iterations). This is implemented by modifying `sim/a3c.py` and `sim/multi_agent.py`. In detail, the entropy weight is set as a `placeholder` in `a3c.py` to make it changeable. During training, `multi_agent.py` adjusts its value according to the number of epochs, and passes the value to `a3c.py`. 
+**Decaying entropy weight.** As described in the Pensieve paper, "the entropy factor $\beta$ is controlled to decay from 1 to 0.1 over $10^5$ iterations". However,  this value is constant during training in the original code (`ENTROPY_WEIGHT = 0.5` in `sim/a3c.py`). I used a stepwise method to decrease the entropy weight (by 0.09 every 10000 iterations). This is implemented by modifying `sim/a3c.py` and `sim/multi_agent.py`. In detail, the entropy weight is set as a `placeholder` in `a3c.py` to make it changeable. During training, `multi_agent.py` adjusts its value according to the number of epochs, and passes the value to `a3c.py`. The initial entropy factor is set by `BETA` in `multi_agent.py`.
 
+
+**States and rewards normalization.** To adapt the model to higher bandwidth or bitrate (e.g., tens of Mbps), the input throughput and chunk size features are divided by 10 for normalization in both training and testing. The reward is normalized in the same way during training. This is controlled by `NORMALIZED` in `sim/multi_agent.py`, `sim/rl_test.py` and `test/rl_no_training.py`.
 
 
 **Network traces.** Four classes of wireless bandwidth traces are used in training and testing, collected in 3G, 4G, 5G, and Wi-Fi networks. Each class of traces is further divided into several types, depending on the location or mobility. I further filter out traces  (see `retrained_info/data_preprocess/filtered_traces.py`) whose average bandwidth is less than 1.5Mbps (because the lowest video bitrate is 1Mbps), mainly in the Norway FCC dataset. Final traces are provided in `retrained_info/data_preprocess/network_traces.zip`. 
