@@ -92,10 +92,7 @@ def main():
 					bit_rate.append(int(parse[1]))
 					buff.append(float(parse[2]))
 					bw.append(float(parse[4]) / float(parse[5]) * BITS_IN_BYTE * MILLISEC_IN_SEC / M_IN_B)
-					if 'sim_rl' in log_file:
-						reward.append(float(parse[6]) * 10)
-					else:
-						reward.append(float(parse[6]))
+					reward.append(float(parse[6]))
 
 		if SIM_DP in log_file:
 			time_ms = time_ms[::-1]
