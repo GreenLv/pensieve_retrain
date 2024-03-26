@@ -36,6 +36,9 @@ TRAIN_TRACES = './cooked_traces/'
 # NN_MODEL = './results/pretrain_linear_reward.ckpt'
 NN_MODEL = None
 
+BETA = 1            # init value of entropy weight
+NORMALIZED = True   # state and reward normalization
+
 
 def testing(epoch, nn_model, log_file):
     # clean up the test results folder
@@ -98,8 +101,8 @@ def calculate_entropy_weight(epoch):
         entropy_weight = 0.1
     """
 
-    # initial entropy weight is 1, then decay to 0.1 in 100000 iterations
-    entropy_weight = 1 - (epoch / 10000) * 0.09
+    # initial entropy weight is BETA, then decay to 0.1 in 100000 iterations
+    entropy_weight = BETA - (epoch / 10000) * 0.09
     if entropy_weight < 0.1:
         entropy_weight = 0.1
 
@@ -224,11 +227,12 @@ def central_agent(net_params_queues, exp_queues):
 
             if epoch % MODEL_SAVE_INTERVAL == 0:
                 # Save the neural net parameters to disk.
-                save_path = saver.save(sess, SUMMARY_DIR + "/nn_model_ep_" +
+                model_pref = "beta-{}_".format(BETA) if not NORMALIZED else "beta-{}_normalized_".format(BETA)
+                save_path = saver.save(sess, SUMMARY_DIR + model_pref +
                                        str(epoch) + ".ckpt")
                 logging.info("Model saved in file: " + save_path)
                 testing(epoch, 
-                    SUMMARY_DIR + "/nn_model_ep_" + str(epoch) + ".ckpt", 
+                    SUMMARY_DIR + model_pref + str(epoch) + ".ckpt", 
                     test_log_file)
 
                 print("[Epoch: " + str(epoch) + "] Entropy weight: " + str(entropy_weight))
@@ -283,7 +287,8 @@ def agent(agent_id, all_cooked_time, all_cooked_bw, net_params_queue, exp_queue)
                      - REBUF_PENALTY * rebuf \
                      - SMOOTH_PENALTY * np.abs(VIDEO_BIT_RATE[bit_rate] -
                                                VIDEO_BIT_RATE[last_bit_rate]) / M_IN_K
-            reward /= 10.   # scaling reward
+            if NORMALIZED:
+                reward /= 10.   # scaling reward
 
             # -- log scale reward --
             # log_bit_rate = np.log(VIDEO_BIT_RATE[bit_rate] / float(VIDEO_BIT_RATE[-1]))
@@ -314,10 +319,14 @@ def agent(agent_id, all_cooked_time, all_cooked_bw, net_params_queue, exp_queue)
             # this should be S_INFO number of terms
             state[0, -1] = VIDEO_BIT_RATE[bit_rate] / float(np.max(VIDEO_BIT_RATE))  # last quality
             state[1, -1] = buffer_size / BUFFER_NORM_FACTOR  # 10 sec
-            state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K / 10.  # 10 kilo byte / ms
             state[3, -1] = float(delay) / M_IN_K / BUFFER_NORM_FACTOR  # 10 sec
-            state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K / 10.  # 10 mega byte
             state[5, -1] = np.minimum(video_chunk_remain, CHUNK_TIL_VIDEO_END_CAP) / float(CHUNK_TIL_VIDEO_END_CAP)
+            if NORMALIZED:
+                state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K / 10.  # 10 kilo byte / ms
+                state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K / 10.  # 10 mega byte
+            else:
+                state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K          # kilo byte / ms
+                state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K   # mega byte
 
             # compute action probability vector
             action_prob = actor.predict(np.reshape(state, (1, S_INFO, S_LEN)))
