@@ -36,6 +36,7 @@ TRAIN_TRACES = './cooked_traces/'
 # NN_MODEL = './results/pretrain_linear_reward.ckpt'
 NN_MODEL = None
 
+MAX_EPOCHS = 110000
 BETA = 1            # init value of entropy weight
 NORMALIZED = True   # state and reward normalization
 
@@ -142,7 +143,8 @@ def central_agent(net_params_queues, exp_queues):
         epoch = 0
 
         # assemble experiences from agents, compute the gradients
-        while True:
+        # while True:
+        while epoch <= MAX_EPOCHES:
             # synchronize the network parameters of work agent
             actor_net_params = actor.get_network_params()
             critic_net_params = critic.get_network_params()
