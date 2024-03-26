@@ -9,6 +9,7 @@ tf.logging.set_verbosity(tf.logging.ERROR)
 import env
 import a3c
 import load_trace
+import time
 
 
 S_INFO = 6  # bit_rate, buffer_size, next_chunk_size, bandwidth_measurement(throughput and time), chunk_til_video_end
@@ -31,7 +32,7 @@ SMOOTH_PENALTY = 1
 DEFAULT_QUALITY = 1  # default video quality without agent
 RANDOM_SEED = 42
 RAND_RANGE = 1000
-SUMMARY_DIR = './results'
+SUMMARY_DIR = './results/'
 LOG_FILE = './results/log'
 TEST_LOG_FOLDER = './test_results/'
 TRAIN_TRACES = './cooked_traces/'
@@ -392,6 +393,8 @@ def agent(agent_id, all_cooked_time, all_cooked_bw, net_params_queue, exp_queue)
 
 def main():
 
+    start_time = time.localtime()
+
     np.random.seed(RANDOM_SEED)
     assert len(VIDEO_BIT_RATE) == A_DIM
 
@@ -427,6 +430,14 @@ def main():
     for i in xrange(NUM_AGENTS):
         agents[i].terminate()
         agents[i].join()
+    
+    # traning info
+    end_time = time.localtime()
+    training_minutes = round((time.mktime(end_time) - time.mktime(start_time)) / 60, 2)
+    print("\n---------- Training finished ----------")
+    print("Start at: "+ time.strftime("%Y-%m-%d %H:%M:%S", start_time))
+    print("End at: " + time.strftime("%Y-%m-%d %H:%M:%S", end_time))
+    print("Total training time: " + str(training_minutes) + " min")
 
 if __name__ == '__main__':
     main()
