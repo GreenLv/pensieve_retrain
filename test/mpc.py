@@ -27,7 +27,6 @@ RAND_RANGE = 1000000
 SUMMARY_DIR = './results'
 LOG_FILE = './results/log_sim_mpc'
 # log in format of time_stamp bit_rate buffer_size rebuffer_time chunk_size download_time reward
-# NN_MODEL = './models/nn_model_ep_5900.ckpt'
 
 CHUNK_COMBO_OPTIONS = []
 
