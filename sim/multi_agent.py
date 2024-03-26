@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import multiprocessing as mp
 os.environ['CUDA_VISIBLE_DEVICES']=''
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import env
 import a3c
