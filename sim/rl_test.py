@@ -62,7 +62,7 @@ def main():
         # restore neural net parameters
         if NN_MODEL is not None:  # NN_MODEL is the path to file
             saver.restore(sess, NN_MODEL)
-            print("Testing model restored.")
+            print("Testing model restored:" + NN_MODEL)
 
         time_stamp = 0
 
