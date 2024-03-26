@@ -423,7 +423,9 @@ def main():
 
     # wait unit training is done
     coordinator.join()
-
+    for i in xrange(NUM_AGENTS):
+        agents[i].terminate()
+        agents[i].join()
 
 if __name__ == '__main__':
     main()
