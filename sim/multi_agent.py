@@ -5,6 +5,7 @@ import multiprocessing as mp
 os.environ['CUDA_VISIBLE_DEVICES']=''
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
+tf.logging.set_verbosity(tf.logging.ERROR)
 import env
 import a3c
 import load_trace
