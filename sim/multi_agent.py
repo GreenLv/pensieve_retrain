@@ -144,7 +144,7 @@ def central_agent(net_params_queues, exp_queues):
 
         # assemble experiences from agents, compute the gradients
         # while True:
-        while epoch <= MAX_EPOCHES:
+        while epoch <= MAX_EPOCHS:
             # synchronize the network parameters of work agent
             actor_net_params = actor.get_network_params()
             critic_net_params = critic.get_network_params()
