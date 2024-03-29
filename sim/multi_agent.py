@@ -106,7 +106,7 @@ def calculate_entropy_weight(epoch):
     """
 
     # initial entropy weight is BETA, then decay to 0.1 in 100000 iterations
-    entropy_weight = BETA - (epoch / 10000) * 0.09
+    entropy_weight = BETA - (epoch / 10000) * (BETA - 0.1) / 10.
     if entropy_weight < 0.1:
         entropy_weight = 0.1
 
