@@ -106,7 +106,7 @@ def calculate_entropy_weight(epoch):
     """
 
     # initial entropy weight is BETA, then decay to 0.1 in 100000 iterations
-    entropy_weight = BETA - (epoch / 10000) * (BETA - 0.1) / 10.
+    entropy_weight = BETA - ((epoch + 1) / 10000) * (BETA - 0.1) / 10.
     if entropy_weight < 0.1:
         entropy_weight = 0.1
 
@@ -173,7 +173,7 @@ def central_agent(net_params_queues, exp_queues):
             actor_gradient_batch = []
             critic_gradient_batch = []
 
-            # decay entropy_weight with iteration (from 1 to 0.1) 
+            # decay entropy_weight with iteration (from BETA to 0.1) 
             entropy_weight = calculate_entropy_weight(epoch)
 
             for i in xrange(NUM_AGENTS):
