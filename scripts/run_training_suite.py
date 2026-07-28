@@ -1,6 +1,7 @@
 """Run the six frozen Pensieve training configurations sequentially."""
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -17,6 +18,18 @@ MODEL_SPECS = [
     ('beta-5', 5, False),
     ('beta-1_normalized', 1, True),
 ]
+
+
+def keep_system_awake(enable):
+    """Prevent Windows sleep while this foreground suite is running."""
+    if os.name != 'nt':
+        return
+    es_continuous = 0x80000000
+    es_system_required = 0x00000001
+    flags = es_continuous | es_system_required if enable else es_continuous
+    result = ctypes.windll.kernel32.SetThreadExecutionState(flags)
+    if result == 0:
+        raise OSError('SetThreadExecutionState failed')
 
 
 def sha256_file(path):
@@ -78,6 +91,7 @@ def main():
     )
     args = parser.parse_args()
 
+    keep_system_awake(True)
     runs_root = os.path.abspath(args.runs_root)
     os.makedirs(runs_root, exist_ok=True)
     code_commit = subprocess.check_output(
@@ -188,6 +202,7 @@ def main():
     manifest['state'] = 'complete'
     manifest['ended_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
     write_json(manifest_path, manifest)
+    keep_system_awake(False)
     print('Suite complete: {}'.format(manifest_path))
 
 
