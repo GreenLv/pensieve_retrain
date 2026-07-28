@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+/work/
+/artifacts/runs/
+/sim/test_results/
+/sim/results/

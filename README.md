@@ -1,4 +1,12 @@
 # Pensieve Retraining
+
+> **2026 correction.** The historical checkpoints and figures below were
+> produced with an input-wiring defect: the actor and critic sixth branches
+> read `state[4, -1]` instead of the remaining-chunk feature in
+> `state[5, -1]`. They are retained only as historical provenance until the
+> corrected normalized beta=1 reference artifact is published. They must not
+> be used as evidence for the repaired implementation.
+
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
 - Support for **dynamic entropy weight**, i.e., decaying $\beta$ from 1 to 0.1 over $10^5$ iterations. Refer to: [Why the result is not better than MPC? · Issue #11 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/11).
@@ -15,7 +23,7 @@ Note: This repository only reports single-video simulation results. Potential is
 
 ## Change description
 
-Only files in three folders are changed: 
+The original project changes were concentrated in three folders:
 
 - `sim/`: dynamic entropy weight; new video; states and rewards normalization.
 - `test/`: new video; states and rewards normalization.
@@ -33,6 +41,35 @@ Pensieve's original training and testing procedure remains unchanged. Specifical
 > `Ubuntu 16.04, Tensorflow v1.1.0, TFLearn v0.3.1 and Selenium v2.39.0`
 >
 > From: [Issue #12 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/12#issuecomment-345060132)
+
+### Corrected reproducible workflow (2026)
+
+The repaired training path is Python 3.7 and Windows `spawn` compatible. It
+passes beta, normalization, seed, data paths, output path, agent count and
+epoch count explicitly to every process. It also sorts and filters trace
+entries, uses independent environment/action RNGs, applies the same
+normalization mode during training and held-out testing, and starts every
+formal model from scratch.
+
+```powershell
+conda env create -f environment-pensieve.yml
+conda run -n pensieve-retrain python scripts/prepare_traces.py
+conda run -n pensieve-retrain python -m pytest -q tests
+conda run -n pensieve-retrain python scripts/smoke_reproducibility.py
+conda run -n pensieve-retrain python scripts/run_training_suite.py
+```
+
+The frozen formal protocol is seed 42, 16 synchronous CPU agents, 110,000
+updates, and held-out evaluation every 100 updates. The suite trains
+non-normalized beta 1--5 plus normalized beta 1. It writes each model to an
+isolated directory and updates `suite_manifest.json` after every completion.
+The trace and environment inventories are under
+`artifacts/reproducibility/`.
+
+Only normalized beta=1 is published as this repository's repaired reference.
+The separate Solis repository owns the non-normalized beta=1--5 evaluation
+models. Solis uses non-normalized beta=1 as its default; selecting the best of
+beta 1--5 is reported separately as a tuned performance upper bound.
 
 
 

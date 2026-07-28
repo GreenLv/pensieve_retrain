@@ -1,443 +1,526 @@
-import os
+"""Deterministic, Windows-compatible synchronous A3C training for Pensieve."""
+
+import argparse
+import hashlib
+import json
 import logging
-import numpy as np
 import multiprocessing as mp
-os.environ['CUDA_VISIBLE_DEVICES']=''
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import tensorflow as tf
-tf.logging.set_verbosity(tf.logging.ERROR)
-import env
-import a3c
-import load_trace
+import os
+import shutil
+import subprocess
+import sys
 import time
 
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 
-S_INFO = 6  # bit_rate, buffer_size, next_chunk_size, bandwidth_measurement(throughput and time), chunk_til_video_end
-S_LEN = 8  # take how many frames in the past
+import numpy as np
+import tensorflow as tf
+
+import a3c
+import env
+import load_trace
+
+
+S_INFO = 6
+S_LEN = 8
 A_DIM = 6
 ACTOR_LR_RATE = 0.0001
 CRITIC_LR_RATE = 0.001
 NUM_AGENTS = 16
-TRAIN_SEQ_LEN = 100  # take as a train batch
+TRAIN_SEQ_LEN = 100
 MODEL_SAVE_INTERVAL = 100
-# VIDEO_BIT_RATE = [300,750,1200,1850,2850,4300]  # Kbps
-VIDEO_BIT_RATE = [1000,2500,5000,8000,16000,40000]  # Kbps
-HD_REWARD = [1, 2, 3, 12, 15, 20]
+VIDEO_BIT_RATE = [1000, 2500, 5000, 8000, 16000, 40000]
 BUFFER_NORM_FACTOR = 10.0
 CHUNK_TIL_VIDEO_END_CAP = 48.0
 M_IN_K = 1000.0
-# REBUF_PENALTY = 4.3  # 1 sec rebuffering -> 3 Mbps
 REBUF_PENALTY = 40
 SMOOTH_PENALTY = 1
-DEFAULT_QUALITY = 1  # default video quality without agent
-RANDOM_SEED = 42
+DEFAULT_QUALITY = 1
 RAND_RANGE = 1000
-SUMMARY_DIR = './results/'
-LOG_FILE = './results/log'
-TEST_LOG_FOLDER = './test_results/'
-TRAIN_TRACES = './cooked_traces/'
-# NN_MODEL = './results/pretrain_linear_reward.ckpt'
-NN_MODEL = None
-
 MAX_EPOCHS = 110000
-BETA = 1            # init value of entropy weight
-NORMALIZED = True   # state and reward normalization
+RANDOM_SEED = 42
 
 
-def testing(epoch, nn_model, log_file):
-    # clean up the test results folder
-    os.system('rm -r ' + TEST_LOG_FOLDER)
-    os.system('mkdir ' + TEST_LOG_FOLDER)
-    
-    # run test script
-    os.system('python rl_test.py ' + nn_model)
-    
-    # append test performance to the log
+def parse_bool(value):
+    normalized = str(value).strip().lower()
+    if normalized in ('1', 'true', 'yes', 'on'):
+        return True
+    if normalized in ('0', 'false', 'no', 'off'):
+        return False
+    raise argparse.ArgumentTypeError('expected true or false')
+
+
+def parse_args():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--beta', type=int, choices=range(1, 6), required=True)
+    parser.add_argument('--normalized', type=parse_bool, required=True)
+    parser.add_argument('--seed', type=int, default=RANDOM_SEED)
+    parser.add_argument('--train-traces', required=True)
+    parser.add_argument('--test-traces', required=True)
+    parser.add_argument('--output-dir', required=True)
+    parser.add_argument('--max-epochs', type=int, default=MAX_EPOCHS)
+    parser.add_argument('--num-agents', type=int, default=NUM_AGENTS)
+    parser.add_argument('--save-interval', type=int,
+                        default=MODEL_SAVE_INTERVAL)
+    parser.add_argument('--train-seq-len', type=int, default=TRAIN_SEQ_LEN)
+    parser.add_argument('--audit-trajectories', action='store_true')
+    parser.add_argument(
+        '--video-size-prefix',
+        default=os.path.join(script_dir, 'video_size_'),
+    )
+    return parser.parse_args()
+
+
+def make_config(args):
+    config = vars(args).copy()
+    for key in ('train_traces', 'test_traces', 'output_dir',
+                'video_size_prefix'):
+        config[key] = os.path.abspath(config[key])
+    config['script_dir'] = os.path.dirname(os.path.abspath(__file__))
+    config['python_executable'] = sys.executable
+    return config
+
+
+def calculate_entropy_weight(epoch, beta):
+    """Return the stair-step entropy weight for a zero-based update index."""
+    entropy_weight = (
+        beta - int((epoch + 1) / 10000) * (beta - 0.1) / 10.0
+    )
+    return max(0.1, entropy_weight)
+
+
+def model_label(config):
+    suffix = '_normalized' if config['normalized'] else ''
+    return 'beta-{}{}'.format(config['beta'], suffix)
+
+
+def write_json(path, value):
+    temporary = path + '.tmp'
+    with open(temporary, 'w', newline='\n') as handle:
+        json.dump(value, handle, indent=2, sort_keys=True)
+        handle.write('\n')
+    os.replace(temporary, path)
+
+
+def test_checkpoint(epoch, checkpoint, test_log_file, config):
+    test_output = os.path.join(config['output_dir'], 'heldout', 'latest')
+    shutil.rmtree(test_output, ignore_errors=True)
+    os.makedirs(test_output)
+    command = [
+        config['python_executable'],
+        os.path.join(config['script_dir'], 'rl_test.py'),
+        '--model', checkpoint,
+        '--test-traces', config['test_traces'],
+        '--output-dir', test_output,
+        '--normalized', str(config['normalized']).lower(),
+        '--seed', str(config['seed']),
+        '--video-size-prefix', config['video_size_prefix'],
+    ]
+    subprocess.run(command, cwd=config['script_dir'], check=True)
+
     rewards = []
-    test_log_files = os.listdir(TEST_LOG_FOLDER)
-    for test_log_file in test_log_files:
+    for name in sorted(os.listdir(test_output)):
+        path = os.path.join(test_output, name)
+        if not os.path.isfile(path):
+            continue
         reward = []
-        with open(TEST_LOG_FOLDER + test_log_file, 'rb') as f:
-            for line in f:
-                parse = line.split()
-                try:
-                    reward.append(float(parse[-1]))
-                except IndexError:
-                    break
+        with open(path, 'r') as handle:
+            for line in handle:
+                fields = line.split()
+                if fields:
+                    reward.append(float(fields[-1]))
         rewards.append(np.sum(reward[1:]))
+    if not rewards:
+        raise RuntimeError('held-out evaluation produced no logs')
 
-    rewards = np.array(rewards)
-
-    rewards_min = np.min(rewards)
-    rewards_5per = np.percentile(rewards, 5)
-    rewards_mean = np.mean(rewards)
-    rewards_median = np.percentile(rewards, 50)
-    rewards_95per = np.percentile(rewards, 95)
-    rewards_max = np.max(rewards)
-
-    log_file.write(str(epoch) + '\t' +
-                   str(rewards_min) + '\t' +
-                   str(rewards_5per) + '\t' +
-                   str(rewards_mean) + '\t' +
-                   str(rewards_median) + '\t' +
-                   str(rewards_95per) + '\t' +
-                   str(rewards_max) + '\n')
-    log_file.flush()
+    rewards = np.asarray(rewards)
+    if not np.all(np.isfinite(rewards)):
+        raise FloatingPointError('held-out rewards contain NaN or Inf')
+    columns = [
+        epoch, np.min(rewards), np.percentile(rewards, 5),
+        np.mean(rewards), np.percentile(rewards, 50),
+        np.percentile(rewards, 95), np.max(rewards),
+    ]
+    test_log_file.write('\t'.join(str(value) for value in columns) + '\n')
+    test_log_file.flush()
 
 
-def calculate_entropy_weight(epoch):
-
-    # entropy weight decay with iteration
-    """
-    if epoch < 20000:
-        entropy_weight = 5
-    elif epoch < 40000:
-        entropy_weight = 4
-    elif epoch < 60000:
-        entropy_weight = 3
-    elif epoch < 70000:
-        entropy_weight = 2
-    elif epoch < 80000:
-        entropy_weight = 1
-    elif epoch < 90000:
-        entropy_weight = 0.5
-    else:
-        entropy_weight = 0.1
-    """
-
-    # initial entropy weight is BETA, then decay to 0.1 in 100000 iterations
-    entropy_weight = BETA - int((epoch + 1) / 10000) * (BETA - 0.1) / 10.
-    if entropy_weight < 0.1:
-        entropy_weight = 0.1
-
-    return entropy_weight
+def assert_finite_network(actor, critic):
+    params = actor.get_network_params() + critic.get_network_params()
+    if not all(np.all(np.isfinite(value)) for value in params):
+        raise FloatingPointError('network parameters contain NaN or Inf')
 
 
-def central_agent(net_params_queues, exp_queues):
+def central_agent(net_params_queues, exp_queues, config):
+    np.random.seed(config['seed'])
+    tf.set_random_seed(config['seed'])
 
-    assert len(net_params_queues) == NUM_AGENTS
-    assert len(exp_queues) == NUM_AGENTS
+    central_log_path = os.path.join(config['output_dir'], 'central.log')
+    logger = logging.getLogger('pensieve.central.{}'.format(os.getpid()))
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    handler = logging.FileHandler(central_log_path, mode='w')
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(handler)
 
-    logging.basicConfig(filename=LOG_FILE + '_central',
-                        filemode='w',
-                        level=logging.INFO)
+    test_summary_path = os.path.join(
+        config['output_dir'], 'heldout_summary.tsv'
+    )
+    tensorboard_dir = os.path.join(config['output_dir'], 'tensorboard')
+    checkpoint_dir = os.path.join(config['output_dir'], 'checkpoints')
+    os.makedirs(tensorboard_dir, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
 
-    with tf.Session() as sess, open(LOG_FILE + '_test', 'wb') as test_log_file:
-
-        actor = a3c.ActorNetwork(sess,
-                                 state_dim=[S_INFO, S_LEN], action_dim=A_DIM,
-                                 learning_rate=ACTOR_LR_RATE)
-        critic = a3c.CriticNetwork(sess,
-                                   state_dim=[S_INFO, S_LEN],
-                                   learning_rate=CRITIC_LR_RATE)
-
+    with tf.Session() as sess, open(
+            test_summary_path, 'w', newline='\n') as test_log_file:
+        test_log_file.write(
+            'epoch\tmin\tp05\tmean\tmedian\tp95\tmax\n'
+        )
+        actor = a3c.ActorNetwork(
+            sess, state_dim=[S_INFO, S_LEN], action_dim=A_DIM,
+            learning_rate=ACTOR_LR_RATE,
+        )
+        critic = a3c.CriticNetwork(
+            sess, state_dim=[S_INFO, S_LEN],
+            learning_rate=CRITIC_LR_RATE,
+        )
         summary_ops, summary_vars = a3c.build_summaries()
-
         sess.run(tf.global_variables_initializer())
-        writer = tf.summary.FileWriter(SUMMARY_DIR, sess.graph)  # training monitor
-        saver = tf.train.Saver()  # save neural net parameters
-
-        # restore neural net parameters
-        nn_model = NN_MODEL
-        if nn_model is not None:  # nn_model is the path to file
-            saver.restore(sess, nn_model)
-            print("Model restored.")
-
+        writer = tf.summary.FileWriter(tensorboard_dir, sess.graph)
+        saver = tf.train.Saver(max_to_keep=2)
         epoch = 0
 
-        # assemble experiences from agents, compute the gradients
-        # while True:
-        while epoch <= MAX_EPOCHS:
-            # synchronize the network parameters of work agent
-            actor_net_params = actor.get_network_params()
-            critic_net_params = critic.get_network_params()
-            for i in xrange(NUM_AGENTS):
-                net_params_queues[i].put([actor_net_params, critic_net_params])
-                # Note: this is synchronous version of the parallel training,
-                # which is easier to understand and probe. The framework can be
-                # fairly easily modified to support asynchronous training.
-                # Some practices of asynchronous training (lock-free SGD at
-                # its core) are nicely explained in the following two papers:
-                # https://arxiv.org/abs/1602.01783
-                # https://arxiv.org/abs/1106.5730
+        try:
+            while epoch < config['max_epochs']:
+                actor_net_params = actor.get_network_params()
+                critic_net_params = critic.get_network_params()
+                for queue in net_params_queues:
+                    queue.put([actor_net_params, critic_net_params])
 
-            # record average reward and td loss change
-            # in the experiences from the agents
-            total_batch_len = 0.0
-            total_reward = 0.0
-            total_td_loss = 0.0
-            total_entropy = 0.0
-            total_agents = 0.0 
+                total_batch_len = 0.0
+                total_reward = 0.0
+                total_td_loss = 0.0
+                total_entropy = 0.0
+                actor_gradient_batch = []
+                critic_gradient_batch = []
+                entropy_weight = calculate_entropy_weight(
+                    epoch, config['beta']
+                )
 
-            # assemble experiences from the agents
-            actor_gradient_batch = []
-            critic_gradient_batch = []
+                for queue in exp_queues:
+                    s_batch, a_batch, r_batch, terminal, info = queue.get()
+                    actor_gradient, critic_gradient, td_batch = \
+                        a3c.compute_gradients(
+                            s_batch=np.stack(s_batch, axis=0),
+                            a_batch=np.vstack(a_batch),
+                            r_batch=np.vstack(r_batch),
+                            terminal=terminal,
+                            actor=actor,
+                            critic=critic,
+                            entropy_weight=entropy_weight,
+                        )
+                    actor_gradient_batch.append(actor_gradient)
+                    critic_gradient_batch.append(critic_gradient)
+                    total_reward += np.sum(r_batch)
+                    total_td_loss += np.sum(td_batch)
+                    total_batch_len += len(r_batch)
+                    total_entropy += np.sum(info['entropy'])
 
-            # decay entropy_weight with iteration (from BETA to 0.1) 
-            entropy_weight = calculate_entropy_weight(epoch)
+                for actor_gradient, critic_gradient in zip(
+                        actor_gradient_batch, critic_gradient_batch):
+                    actor.apply_gradients(actor_gradient)
+                    critic.apply_gradients(critic_gradient)
 
-            for i in xrange(NUM_AGENTS):
-                s_batch, a_batch, r_batch, terminal, info = exp_queues[i].get()
+                epoch += 1
+                avg_reward = total_reward / config['num_agents']
+                avg_td_loss = total_td_loss / total_batch_len
+                avg_entropy = total_entropy / total_batch_len
+                metrics = np.asarray(
+                    [avg_reward, avg_td_loss, avg_entropy, entropy_weight]
+                )
+                if not np.all(np.isfinite(metrics)):
+                    raise FloatingPointError(
+                        'non-finite metric at epoch {}'.format(epoch)
+                    )
+                logger.info(
+                    'Epoch: %d TD_loss: %.17g Avg_reward: %.17g '
+                    'Avg_entropy: %.17g Entropy_weight: %.17g',
+                    epoch, avg_td_loss, avg_reward, avg_entropy,
+                    entropy_weight,
+                )
+                summary_str = sess.run(summary_ops, feed_dict={
+                    summary_vars[0]: avg_td_loss,
+                    summary_vars[1]: avg_reward,
+                    summary_vars[2]: avg_entropy,
+                })
+                writer.add_summary(summary_str, epoch)
+                writer.flush()
 
-                actor_gradient, critic_gradient, td_batch = \
-                    a3c.compute_gradients(
-                        s_batch=np.stack(s_batch, axis=0),
-                        a_batch=np.vstack(a_batch),
-                        r_batch=np.vstack(r_batch),
-                        terminal=terminal, actor=actor, critic=critic, entropy_weight=entropy_weight)
+                if epoch % config['save_interval'] == 0:
+                    assert_finite_network(actor, critic)
+                    latest = saver.save(
+                        sess, os.path.join(checkpoint_dir, 'latest.ckpt')
+                    )
+                    test_checkpoint(epoch, latest, test_log_file, config)
+                    write_json(
+                        os.path.join(config['output_dir'], 'status.json'),
+                        {
+                            'completed_epochs': epoch,
+                            'entropy_weight': entropy_weight,
+                            'label': model_label(config),
+                            'state': 'running',
+                            'updated_at': time.strftime(
+                                '%Y-%m-%dT%H:%M:%S%z'
+                            ),
+                        },
+                    )
+                    print(
+                        '[{} epoch {}] entropy={}'.format(
+                            model_label(config), epoch, entropy_weight
+                        ),
+                        flush=True,
+                    )
 
-                actor_gradient_batch.append(actor_gradient)
-                critic_gradient_batch.append(critic_gradient)
-
-                total_reward += np.sum(r_batch)
-                total_td_loss += np.sum(td_batch)
-                total_batch_len += len(r_batch)
-                total_agents += 1.0
-                total_entropy += np.sum(info['entropy'])
-
-            # compute aggregated gradient
-            assert NUM_AGENTS == len(actor_gradient_batch)
-            assert len(actor_gradient_batch) == len(critic_gradient_batch)
-            # assembled_actor_gradient = actor_gradient_batch[0]
-            # assembled_critic_gradient = critic_gradient_batch[0]
-            # for i in xrange(len(actor_gradient_batch) - 1):
-            #     for j in xrange(len(assembled_actor_gradient)):
-            #             assembled_actor_gradient[j] += actor_gradient_batch[i][j]
-            #             assembled_critic_gradient[j] += critic_gradient_batch[i][j]
-            # actor.apply_gradients(assembled_actor_gradient)
-            # critic.apply_gradients(assembled_critic_gradient)
-            for i in xrange(len(actor_gradient_batch)):
-                actor.apply_gradients(actor_gradient_batch[i])
-                critic.apply_gradients(critic_gradient_batch[i])
-
-            # log training information
-            epoch += 1
-            avg_reward = total_reward  / total_agents
-            avg_td_loss = total_td_loss / total_batch_len
-            avg_entropy = total_entropy / total_batch_len
-
-            logging.info('Epoch: ' + str(epoch) +
-                         ' TD_loss: ' + str(avg_td_loss) +
-                         ' Avg_reward: ' + str(avg_reward) +
-                         ' Avg_entropy: ' + str(avg_entropy))
-
-            summary_str = sess.run(summary_ops, feed_dict={
-                summary_vars[0]: avg_td_loss,
-                summary_vars[1]: avg_reward,
-                summary_vars[2]: avg_entropy
-            })
-
-            writer.add_summary(summary_str, epoch)
-            writer.flush()
-
-            if epoch % MODEL_SAVE_INTERVAL == 0:
-                # Save the neural net parameters to disk.
-                model_pref = "beta-{}_".format(BETA) if not NORMALIZED else "beta-{}_normalized_".format(BETA)
-                save_path = saver.save(sess, SUMMARY_DIR + model_pref +
-                                       str(epoch) + ".ckpt")
-                logging.info("Model saved in file: " + save_path)
-                testing(epoch, 
-                    SUMMARY_DIR + model_pref + str(epoch) + ".ckpt", 
-                    test_log_file)
-
-                print("[Epoch: " + str(epoch) + "] Entropy weight: " + str(entropy_weight))
+            assert_finite_network(actor, critic)
+            final_checkpoint = saver.save(
+                sess, os.path.join(checkpoint_dir, 'final.ckpt')
+            )
+            if epoch % config['save_interval'] != 0:
+                test_checkpoint(epoch, final_checkpoint, test_log_file, config)
+            write_json(
+                os.path.join(config['output_dir'], 'status.json'),
+                {
+                    'completed_epochs': epoch,
+                    'entropy_weight': calculate_entropy_weight(
+                        max(0, epoch - 1), config['beta']
+                    ),
+                    'final_checkpoint': final_checkpoint,
+                    'label': model_label(config),
+                    'state': 'complete',
+                    'updated_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                },
+            )
+        finally:
+            writer.close()
+            handler.close()
 
 
-def agent(agent_id, all_cooked_time, all_cooked_bw, net_params_queue, exp_queue):
+def update_state(state, bit_rate, buffer_size, delay, video_chunk_size,
+                 next_video_chunk_sizes, video_chunk_remain, normalized):
+    state = np.roll(np.array(state, copy=True), -1, axis=1)
+    state[0, -1] = VIDEO_BIT_RATE[bit_rate] / float(max(VIDEO_BIT_RATE))
+    state[1, -1] = buffer_size / BUFFER_NORM_FACTOR
+    scale = 10.0 if normalized else 1.0
+    state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K / scale
+    state[3, -1] = float(delay) / M_IN_K / BUFFER_NORM_FACTOR
+    state[4, :A_DIM] = (
+        np.asarray(next_video_chunk_sizes) / M_IN_K / M_IN_K / scale
+    )
+    state[5, -1] = (
+        min(video_chunk_remain, CHUNK_TIL_VIDEO_END_CAP)
+        / CHUNK_TIL_VIDEO_END_CAP
+    )
+    return state
 
-    net_env = env.Environment(all_cooked_time=all_cooked_time,
-                              all_cooked_bw=all_cooked_bw,
-                              random_seed=agent_id)
 
-    with tf.Session() as sess, open(LOG_FILE + '_agent_' + str(agent_id), 'wb') as log_file:
-        actor = a3c.ActorNetwork(sess,
-                                 state_dim=[S_INFO, S_LEN], action_dim=A_DIM,
-                                 learning_rate=ACTOR_LR_RATE)
-        critic = a3c.CriticNetwork(sess,
-                                   state_dim=[S_INFO, S_LEN],
-                                   learning_rate=CRITIC_LR_RATE)
+def agent(agent_id, net_params_queue, exp_queue, config):
+    agent_seed = config['seed'] + agent_id
+    np.random.seed(agent_seed)
+    tf.set_random_seed(agent_seed)
+    action_rng = np.random.RandomState(agent_seed + 10000)
+    all_cooked_time, all_cooked_bw, _ = load_trace.load_trace(
+        config['train_traces']
+    )
+    net_env = env.Environment(
+        all_cooked_time=all_cooked_time,
+        all_cooked_bw=all_cooked_bw,
+        random_seed=agent_seed,
+        video_size_prefix=config['video_size_prefix'],
+    )
 
-        # initial synchronization of the network parameters from the coordinator
+    audit_file = None
+    if config['audit_trajectories']:
+        audit_file = open(
+            os.path.join(
+                config['output_dir'],
+                'agent_{:02d}_trajectory.tsv'.format(agent_id),
+            ),
+            'w',
+            buffering=1,
+            newline='\n',
+        )
+        audit_file.write(
+            'trace_index\tchunk_index\tselected_action\tstate_sha256\n'
+        )
+
+    with tf.Session() as sess:
+        actor = a3c.ActorNetwork(
+            sess, state_dim=[S_INFO, S_LEN], action_dim=A_DIM,
+            learning_rate=ACTOR_LR_RATE,
+        )
+        critic = a3c.CriticNetwork(
+            sess, state_dim=[S_INFO, S_LEN],
+            learning_rate=CRITIC_LR_RATE,
+        )
         actor_net_params, critic_net_params = net_params_queue.get()
         actor.set_network_params(actor_net_params)
         critic.set_network_params(critic_net_params)
 
         last_bit_rate = DEFAULT_QUALITY
         bit_rate = DEFAULT_QUALITY
-
         action_vec = np.zeros(A_DIM)
         action_vec[bit_rate] = 1
-
         s_batch = [np.zeros((S_INFO, S_LEN))]
         a_batch = [action_vec]
         r_batch = []
         entropy_record = []
 
-        time_stamp = 0
-        while True:  # experience video streaming forever
-
-            # the action is from the last decision
-            # this is to make the framework similar to the real
-            delay, sleep_time, buffer_size, rebuf, \
-            video_chunk_size, next_video_chunk_sizes, \
-            end_of_video, video_chunk_remain = \
+        while True:
+            trace_index = net_env.trace_idx
+            chunk_index = net_env.video_chunk_counter
+            delay, sleep_time, buffer_size, rebuf, video_chunk_size, \
+                next_video_chunk_sizes, end_of_video, video_chunk_remain = \
                 net_env.get_video_chunk(bit_rate)
-
-            time_stamp += delay  # in ms
-            time_stamp += sleep_time  # in ms
-
-            # -- linear reward --
-            # reward is video quality - rebuffer penalty - smoothness
-            reward = VIDEO_BIT_RATE[bit_rate] / M_IN_K \
-                     - REBUF_PENALTY * rebuf \
-                     - SMOOTH_PENALTY * np.abs(VIDEO_BIT_RATE[bit_rate] -
-                                               VIDEO_BIT_RATE[last_bit_rate]) / M_IN_K
-            if NORMALIZED:
-                reward /= 10.   # scaling reward
-
-            # -- log scale reward --
-            # log_bit_rate = np.log(VIDEO_BIT_RATE[bit_rate] / float(VIDEO_BIT_RATE[-1]))
-            # log_last_bit_rate = np.log(VIDEO_BIT_RATE[last_bit_rate] / float(VIDEO_BIT_RATE[-1]))
-
-            # reward = log_bit_rate \
-            #          - REBUF_PENALTY * rebuf \
-            #          - SMOOTH_PENALTY * np.abs(log_bit_rate - log_last_bit_rate)
-
-            # -- HD reward --
-            # reward = HD_REWARD[bit_rate] \
-            #          - REBUF_PENALTY * rebuf \
-            #          - SMOOTH_PENALTY * np.abs(HD_REWARD[bit_rate] - HD_REWARD[last_bit_rate])
-
+            reward = (
+                VIDEO_BIT_RATE[bit_rate] / M_IN_K
+                - REBUF_PENALTY * rebuf
+                - SMOOTH_PENALTY
+                * abs(VIDEO_BIT_RATE[bit_rate]
+                      - VIDEO_BIT_RATE[last_bit_rate]) / M_IN_K
+            )
+            if config['normalized']:
+                reward /= 10.0
             r_batch.append(reward)
-
             last_bit_rate = bit_rate
 
-            # retrieve previous state
-            if len(s_batch) == 0:
-                state = [np.zeros((S_INFO, S_LEN))]
-            else:
-                state = np.array(s_batch[-1], copy=True)
-
-            # dequeue history record
-            state = np.roll(state, -1, axis=1)
-
-            # this should be S_INFO number of terms
-            state[0, -1] = VIDEO_BIT_RATE[bit_rate] / float(np.max(VIDEO_BIT_RATE))  # last quality
-            state[1, -1] = buffer_size / BUFFER_NORM_FACTOR  # 10 sec
-            state[3, -1] = float(delay) / M_IN_K / BUFFER_NORM_FACTOR  # 10 sec
-            state[5, -1] = np.minimum(video_chunk_remain, CHUNK_TIL_VIDEO_END_CAP) / float(CHUNK_TIL_VIDEO_END_CAP)
-            if NORMALIZED:
-                state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K / 10.  # 10 kilo byte / ms
-                state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K / 10.  # 10 mega byte
-            else:
-                state[2, -1] = float(video_chunk_size) / float(delay) / M_IN_K          # kilo byte / ms
-                state[4, :A_DIM] = np.array(next_video_chunk_sizes) / M_IN_K / M_IN_K   # mega byte
-
-            # compute action probability vector
-            action_prob = actor.predict(np.reshape(state, (1, S_INFO, S_LEN)))
+            state = update_state(
+                s_batch[-1] if s_batch else np.zeros((S_INFO, S_LEN)),
+                bit_rate, buffer_size, delay, video_chunk_size,
+                next_video_chunk_sizes, video_chunk_remain,
+                config['normalized'],
+            )
+            action_prob = actor.predict(
+                np.reshape(state, (1, S_INFO, S_LEN))
+            )
+            if not np.all(np.isfinite(action_prob)):
+                raise FloatingPointError('actor emitted non-finite probability')
             action_cumsum = np.cumsum(action_prob)
-            bit_rate = (action_cumsum > np.random.randint(1, RAND_RANGE) / float(RAND_RANGE)).argmax()
-            # Note: we need to discretize the probability into 1/RAND_RANGE steps,
-            # because there is an intrinsic discrepancy in passing single state and batch states
-
+            sample = action_rng.randint(1, RAND_RANGE) / float(RAND_RANGE)
+            bit_rate = int((action_cumsum > sample).argmax())
             entropy_record.append(a3c.compute_entropy(action_prob[0]))
+            if audit_file is not None:
+                audit_file.write(
+                    '{}\t{}\t{}\t{}\n'.format(
+                        trace_index, chunk_index, bit_rate,
+                        hashlib.sha256(state.tobytes()).hexdigest(),
+                    )
+                )
+                audit_file.flush()
 
-            # log time_stamp, bit_rate, buffer_size, reward
-            log_file.write(str(time_stamp) + '\t' +
-                           str(VIDEO_BIT_RATE[bit_rate]) + '\t' +
-                           str(buffer_size) + '\t' +
-                           str(rebuf) + '\t' +
-                           str(video_chunk_size) + '\t' +
-                           str(delay) + '\t' +
-                           str(reward) + '\n')
-            log_file.flush()
-
-            # report experience to the coordinator
-            if len(r_batch) >= TRAIN_SEQ_LEN or end_of_video:
-                exp_queue.put([s_batch[1:],  # ignore the first chuck
-                               a_batch[1:],  # since we don't have the
-                               r_batch[1:],  # control over it
-                               end_of_video,
-                               {'entropy': entropy_record}])
-
-                # synchronize the network parameters from the coordinator
+            if len(r_batch) >= config['train_seq_len'] or end_of_video:
+                exp_queue.put([
+                    s_batch[1:], a_batch[1:], r_batch[1:], end_of_video,
+                    {'entropy': entropy_record},
+                ])
                 actor_net_params, critic_net_params = net_params_queue.get()
                 actor.set_network_params(actor_net_params)
                 critic.set_network_params(critic_net_params)
+                s_batch[:] = []
+                a_batch[:] = []
+                r_batch[:] = []
+                entropy_record[:] = []
 
-                del s_batch[:]
-                del a_batch[:]
-                del r_batch[:]
-                del entropy_record[:]
-
-                log_file.write('\n')  # so that in the log we know where video ends
-
-            # store the state and action into batches
             if end_of_video:
                 last_bit_rate = DEFAULT_QUALITY
-                bit_rate = DEFAULT_QUALITY  # use the default action here
-
+                bit_rate = DEFAULT_QUALITY
                 action_vec = np.zeros(A_DIM)
                 action_vec[bit_rate] = 1
-
                 s_batch.append(np.zeros((S_INFO, S_LEN)))
                 a_batch.append(action_vec)
-
             else:
                 s_batch.append(state)
-
                 action_vec = np.zeros(A_DIM)
                 action_vec[bit_rate] = 1
                 a_batch.append(action_vec)
+
+
+def validate_config(config):
+    if config['max_epochs'] <= 0:
+        raise ValueError('max-epochs must be positive')
+    if config['num_agents'] <= 0:
+        raise ValueError('num-agents must be positive')
+    if config['save_interval'] <= 0:
+        raise ValueError('save-interval must be positive')
+    for key in ('train_traces', 'test_traces'):
+        if not os.path.isdir(config[key]):
+            raise ValueError('{} is not a directory: {}'.format(
+                key, config[key]
+            ))
+    for bitrate in range(A_DIM):
+        path = config['video_size_prefix'] + str(bitrate)
+        if not os.path.isfile(path):
+            raise ValueError('missing video-size file: {}'.format(path))
 
 
 def main():
+    config = make_config(parse_args())
+    validate_config(config)
+    os.makedirs(config['output_dir'], exist_ok=False)
+    config_to_record = config.copy()
+    config_to_record['started_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+    config_to_record['tensorflow_version'] = tf.__version__
+    config_to_record['numpy_version'] = np.__version__
+    write_json(
+        os.path.join(config['output_dir'], 'run_config.json'),
+        config_to_record,
+    )
 
-    start_time = time.localtime()
+    context = mp.get_context('spawn')
+    net_params_queues = [
+        context.Queue(1) for _ in range(config['num_agents'])
+    ]
+    exp_queues = [
+        context.Queue(1) for _ in range(config['num_agents'])
+    ]
+    coordinator = context.Process(
+        target=central_agent,
+        args=(net_params_queues, exp_queues, config),
+        name='pensieve-central',
+    )
+    agents = [
+        context.Process(
+            target=agent,
+            args=(i, net_params_queues[i], exp_queues[i], config),
+            name='pensieve-agent-{}'.format(i),
+        )
+        for i in range(config['num_agents'])
+    ]
 
-    np.random.seed(RANDOM_SEED)
-    assert len(VIDEO_BIT_RATE) == A_DIM
-
-    # create result directory
-    if not os.path.exists(SUMMARY_DIR):
-        os.makedirs(SUMMARY_DIR)
-
-    # inter-process communication queues
-    net_params_queues = []
-    exp_queues = []
-    for i in xrange(NUM_AGENTS):
-        net_params_queues.append(mp.Queue(1))
-        exp_queues.append(mp.Queue(1))
-
-    # create a coordinator and multiple agent processes
-    # (note: threading is not desirable due to python GIL)
-    coordinator = mp.Process(target=central_agent,
-                             args=(net_params_queues, exp_queues))
+    started = time.time()
     coordinator.start()
-
-    all_cooked_time, all_cooked_bw, _ = load_trace.load_trace(TRAIN_TRACES)
-    agents = []
-    for i in xrange(NUM_AGENTS):
-        agents.append(mp.Process(target=agent,
-                                 args=(i, all_cooked_time, all_cooked_bw,
-                                       net_params_queues[i],
-                                       exp_queues[i])))
-    for i in xrange(NUM_AGENTS):
-        agents[i].start()
-
-    # wait unit training is done
+    for process in agents:
+        process.start()
     coordinator.join()
-    for i in xrange(NUM_AGENTS):
-        agents[i].terminate()
-        agents[i].join()
-    
-    # traning info
-    end_time = time.localtime()
-    training_minutes = round((time.mktime(end_time) - time.mktime(start_time)) / 60, 2)
-    print("\n---------- Training finished ----------")
-    print("Start at: "+ time.strftime("%Y-%m-%d %H:%M:%S", start_time))
-    print("End at: " + time.strftime("%Y-%m-%d %H:%M:%S", end_time))
-    print("Total training time: " + str(training_minutes) + " min")
+    for process in agents:
+        process.terminate()
+        process.join()
+    for queue in net_params_queues + exp_queues:
+        queue.close()
+
+    if coordinator.exitcode != 0:
+        raise RuntimeError(
+            'central agent exited with code {}'.format(coordinator.exitcode)
+        )
+    elapsed_minutes = round((time.time() - started) / 60.0, 2)
+    print(
+        'Training {} completed in {} minutes'.format(
+            model_label(config), elapsed_minutes
+        )
+    )
+
 
 if __name__ == '__main__':
+    mp.freeze_support()
     main()
