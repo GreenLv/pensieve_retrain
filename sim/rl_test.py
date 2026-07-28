@@ -9,6 +9,8 @@ os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 import numpy as np
 import tensorflow as tf
 
+tf.logging.set_verbosity(tf.logging.ERROR)
+
 import a3c
 import fixed_env as env
 import load_trace
