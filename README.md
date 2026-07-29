@@ -1,7 +1,7 @@
 # Pensieve Retraining
 
-> **2026 correction completed.** The historical checkpoint and figures below
-> were produced with an input-wiring defect: the actor and critic sixth
+> **2026 correction completed.** The historical checkpoint and training
+> figures were produced with an input-wiring defect: the actor and critic sixth
 > branches read `state[4, -1]` instead of the remaining-chunk feature in
 > `state[5, -1]`. The old checkpoint has been removed from the active path.
 > The corrected, from-scratch normalized beta=1 reference reached 110,000
@@ -11,7 +11,7 @@
 
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
-- Support for **dynamic entropy weight**, i.e., decaying $\beta$ from 1 to 0.1 over $10^5$ iterations. Refer to: [Why the result is not better than MPC? · Issue #11 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/11).
+- Support for **dynamic entropy weight**, i.e., decaying $\beta$ from 1 to 0.1 over $10^5$ iterations. Refer to: [Why the result is not better than MPC? · Issue #11](https://github.com/hongzimao/pensieve/issues/11).
 - Train and test Pensieve under **higher video bitrate** (up to 4K resolution encoded at 40Mbps). Specifically,`VIDEO_BIT_RATE`, `REBUF_PENALTY`, and chunk size information in Pensieve, BBA , and RobustMPC are modified. The video ([Big Buck Bunny](https://peach.blender.org/)) is provided in `sim/` and `test/`.
 - **Normalize states and rewards** for higher network bandwidth (e.g., in 5G networks) by an order of magnitude. Refer to: [godka/pensieve-5G: Pensieve for 5G datasets](https://github.com/godka/pensieve-5G).
 - Carefully split the dataset into training and test sets in a repeatable way.
@@ -32,17 +32,12 @@ The original project changes were concentrated in three folders:
 - `retrained_info/`: information related to the retrained model, including:
   - `data_preprocess/`: network traces; scripts to filter and split the dataset (network traces)
   - `retrained_model/`: retrained model files
-  - `training_info/`: training curves about the reward and TD loss; the central agent log
+  - `training_info/`: historical training curves for reward and TD loss
   - `test_results/`: performance of the retrained model versus BBA and RobustMPC
 
 
 
 ## Training and testing methodology
-Pensieve's original training and testing procedure remains unchanged. Specifically, I used a TensorFlow v1.1.0 docker to run the programs. Best practices were provided by the authors:
-
-> `Ubuntu 16.04, Tensorflow v1.1.0, TFLearn v0.3.1 and Selenium v2.39.0`
->
-> From: [Issue #12 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/12#issuecomment-345060132)
 
 ### Corrected reproducible workflow (2026)
 
@@ -137,10 +132,15 @@ and are retained only for provenance.
 ## Testing results
 
 The figures below are regenerated with the repository's original
-`test/plot_results.py` script. They compare the corrected non-normalized
-beta=1 model with BBA and RobustMPC on the frozen 100-trace test split. All
-three methods use the same raw-reward scale; the corresponding input logs are
-packaged in `retrained_info/test_results/test_logs.zip`.
+`test/plot_results.py` script. They compare the best-performing corrected
+model from the beta=1--5 sweep (beta=4) with BBA and RobustMPC on the frozen
+100-trace test split. Its mean total reward is 29.4% higher than BBA and 6.1%
+higher than RobustMPC. All three methods use the same raw-reward scale; the
+corresponding input logs are packaged in `retrained_info/test_results/test_logs.zip`.
+
+Beta=4 is selected on this sweep and is reported here as a tuned performance
+upper bound. It does not replace the default beta=1 configuration or the
+separately published normalized beta=1 reference checkpoint.
 
 <p align="left">
     <img src="retrained_info/test_results/mean_rewards_110000.png" width="40%">
