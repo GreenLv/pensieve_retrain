@@ -1,13 +1,11 @@
 # Pensieve Retraining
 
-> **2026 correction completed.** The historical checkpoint and training
-> figures were produced with an input-wiring defect: the actor and critic sixth
-> branches read `state[4, -1]` instead of the remaining-chunk feature in
+> **2026 correction completed.** The historical checkpoint was produced with
+> an input-wiring defect: the sixth input branches of the actor and critic read
+> `state[4, -1]` instead of the remaining-chunk feature in
 > `state[5, -1]`. The old checkpoint has been removed from the active path.
 > The corrected, from-scratch normalized beta=1 reference reached 110,000
 > updates and is published with a machine-readable reproduction manifest.
-> Historical training figures remain provenance only and are not evidence for
-> the repaired implementation.
 
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
@@ -32,7 +30,6 @@ The original project changes were concentrated in three folders:
 - `retrained_info/`: information related to the retrained model, including:
   - `data_preprocess/`: network traces; scripts to filter and split the dataset (network traces)
   - `retrained_model/`: retrained model files
-  - `training_info/`: historical training curves for reward and TD loss
   - `test_results/`: performance of the retrained model versus BBA and RobustMPC
 
 
@@ -117,17 +114,6 @@ every 100 updates. Component hashes, environment versions, trace-manifest
 hash, training commit, and removed historical checkpoint hashes are recorded
 in `retrained_info/reproduction_manifest.json` and
 `retrained_info/REPRODUCIBILITY.md`.
-
-The 109,900-iteration curves below belong to the superseded historical model
-and are retained only for provenance.
-
-<p align="left">
-    <img src="retrained_info/training_info/training_reward.png" width="60%">
-    <img src="retrained_info/training_info/training_loss.png" width="60%">
-</p>
-
-
-
 
 ## Testing results
 
