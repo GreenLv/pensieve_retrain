@@ -1,11 +1,13 @@
 # Pensieve Retraining
 
-> **2026 correction.** The historical checkpoints and figures below were
-> produced with an input-wiring defect: the actor and critic sixth branches
-> read `state[4, -1]` instead of the remaining-chunk feature in
-> `state[5, -1]`. They are retained only as historical provenance until the
-> corrected normalized beta=1 reference artifact is published. They must not
-> be used as evidence for the repaired implementation.
+> **2026 correction completed.** The historical checkpoint and figures below
+> were produced with an input-wiring defect: the actor and critic sixth
+> branches read `state[4, -1]` instead of the remaining-chunk feature in
+> `state[5, -1]`. The old checkpoint has been removed from the active path.
+> The corrected, from-scratch normalized beta=1 reference reached 110,000
+> updates and is published with a machine-readable reproduction manifest.
+> Historical figures remain provenance only and are not evidence for the
+> repaired implementation.
 
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
@@ -113,7 +115,16 @@ Training and test set distribution (average trace bandwidth):
 
 ## Retrained model information
 
-The model is training for 109,900 iterations, taking 7 hours and 44 minutes. 
+The repaired public reference is
+`retrained_info/retrained_model/beta-1_normalized_ep_110000.ckpt`. It was
+trained from scratch with seed 42, 16 CPU A3C agents, and held-out testing
+every 100 updates. Component hashes, environment versions, trace-manifest
+hash, training commit, and removed historical checkpoint hashes are recorded
+in `retrained_info/reproduction_manifest.json` and
+`retrained_info/REPRODUCIBILITY.md`.
+
+The 109,900-iteration curves below belong to the superseded historical model
+and are retained only for provenance.
 
 <p align="left">
     <img src="retrained_info/training_info/training_reward.png" width="60%">
@@ -125,7 +136,11 @@ The model is training for 109,900 iterations, taking 7 hours and 44 minutes.
 
 ## Testing results
 
-BBA ("sim_bb") and RobustMPC ("sim_mpc") are evaluated on the same test set. It can be seen that the retrained Pensieve model ("sim_rl") successfully outperforms these two algorithms, in terms of the average QoE score (5.7% to 28.9% higher). 
+The figures below compare the superseded historical model with BBA and
+RobustMPC. Because that model was trained with the incorrect sixth input,
+the earlier “5.7% to 28.9% higher” statement is not a result of the repaired
+implementation and must not be cited as such. Current repaired-model
+evaluation is owned by the Solis repository.
 
 <p align="left">
     <img src="retrained_info/test_results/mean_rewards_109900.png" width="40%">
