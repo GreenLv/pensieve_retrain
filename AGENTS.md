@@ -32,13 +32,4 @@ Only the repaired, normalized beta=1 reference checkpoint and its closed
 provenance summary belong in this repository. Historical artifact hashes must
 remain documented even when a superseded model is removed from an active path.
 
-## Relationship to Solis
-
-`E:\GitHub\Solis-code` is a separate repository. It owns the five
-non-normalized beta=1..5 checkpoints used by the parameter study, the
-normalized beta=1 compatibility checkpoint, all QoE/P.1203 measurements, and
-paper evidence. The standard eight-algorithm comparison uses non-normalized
-beta=1. A best-of-beta result is reported separately as a tuned performance
-upper bound and must never silently replace that default.
-
-Do not push either repository unless the user explicitly asks.
+Do not push this repository unless the user explicitly asks.

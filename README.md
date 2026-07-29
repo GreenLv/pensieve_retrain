@@ -69,9 +69,9 @@ The trace and environment inventories are under
 `artifacts/reproducibility/`.
 
 Only normalized beta=1 is published as this repository's repaired reference.
-The separate Solis repository owns the non-normalized beta=1--5 evaluation
-models. Solis uses non-normalized beta=1 as its default; selecting the best of
-beta 1--5 is reported separately as a tuned performance upper bound.
+The non-normalized beta=1--5 checkpoints are not published here. Results from
+selecting the best of beta 1--5 must be identified as a tuned performance
+upper bound rather than silently replacing the default beta=1 configuration.
 
 
 
@@ -139,8 +139,8 @@ and are retained only for provenance.
 The figures below compare the superseded historical model with BBA and
 RobustMPC. Because that model was trained with the incorrect sixth input,
 the earlier “5.7% to 28.9% higher” statement is not a result of the repaired
-implementation and must not be cited as such. Current repaired-model
-evaluation is owned by the Solis repository.
+implementation and must not be cited as such. This repository does not report
+a replacement comparison for the repaired model.
 
 <p align="left">
     <img src="retrained_info/test_results/mean_rewards_109900.png" width="40%">

@@ -3,8 +3,7 @@
 Published: 2026-07-30
 
 This repository publishes only the corrected normalized beta=1 reference
-checkpoint. The five non-normalized beta models used by Solis remain in the
-independently versioned Solis repository.
+checkpoint. The five non-normalized beta models are not published here.
 
 ## Protocol
 
@@ -53,5 +52,4 @@ the removed erroneous checkpoint.
 The six-model suite completed all 110,000 updates without NaN/Inf. The
 published model passed TensorFlow restore, finite/normalized actor
 probabilities, deterministic single-session smoke tests, and component hash
-closure. The Solis recovery then regenerated 7,650 beta-sweep sessions and
-1,530 formal beta=1 measurement sessions.
+closure.

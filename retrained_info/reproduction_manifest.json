@@ -86,7 +86,6 @@
   ],
   "save_interval": 100,
   "seed": 42,
-  "solis_checkpoint_manifest": "E:\\GitHub\\Solis-code\\docs\\pensieve_retraining\\checkpoint_manifest.json",
   "suite_manifest_sha256": "4fd28c22fc3acb9cfb16b66417c32577fe130b507ce7c3339ef10f09f52a60da",
   "trace_manifest_sha256": "c06e9a51d9931585ba3926bbd1c951e0e0d1e659f96adab8e920766b1b9a4989",
   "training_commit": "d5a6571afa7dc68a1497ec6330dc3e3cdfa5389f"
