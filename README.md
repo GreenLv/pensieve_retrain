@@ -1,4 +1,14 @@
 # Pensieve Retraining
+
+> **2026 correction completed.** The historical checkpoint and figures below
+> were produced with an input-wiring defect: the actor and critic sixth
+> branches read `state[4, -1]` instead of the remaining-chunk feature in
+> `state[5, -1]`. The old checkpoint has been removed from the active path.
+> The corrected, from-scratch normalized beta=1 reference reached 110,000
+> updates and is published with a machine-readable reproduction manifest.
+> Historical figures remain provenance only and are not evidence for the
+> repaired implementation.
+
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
 - Support for **dynamic entropy weight**, i.e., decaying $\beta$ from 1 to 0.1 over $10^5$ iterations. Refer to: [Why the result is not better than MPC? · Issue #11 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/11).
@@ -15,7 +25,7 @@ Note: This repository only reports single-video simulation results. Potential is
 
 ## Change description
 
-Only files in three folders are changed: 
+The original project changes were concentrated in three folders:
 
 - `sim/`: dynamic entropy weight; new video; states and rewards normalization.
 - `test/`: new video; states and rewards normalization.
@@ -34,12 +44,41 @@ Pensieve's original training and testing procedure remains unchanged. Specifical
 >
 > From: [Issue #12 · hongzimao/pensieve](https://github.com/hongzimao/pensieve/issues/12#issuecomment-345060132)
 
+### Corrected reproducible workflow (2026)
+
+The repaired training path is Python 3.7 and Windows `spawn` compatible. It
+passes beta, normalization, seed, data paths, output path, agent count and
+epoch count explicitly to every process. It also sorts and filters trace
+entries, uses independent environment/action RNGs, applies the same
+normalization mode during training and held-out testing, and starts every
+formal model from scratch.
+
+```powershell
+conda env create -f environment-pensieve.yml
+conda run -n pensieve-retrain python scripts/prepare_traces.py
+conda run -n pensieve-retrain python -m pytest -q tests
+conda run -n pensieve-retrain python scripts/smoke_reproducibility.py
+conda run -n pensieve-retrain python scripts/run_training_suite.py
+```
+
+The frozen formal protocol is seed 42, 16 synchronous CPU agents, 110,000
+updates, and held-out evaluation every 100 updates. The suite trains
+non-normalized beta 1--5 plus normalized beta 1. It writes each model to an
+isolated directory and updates `suite_manifest.json` after every completion.
+The trace and environment inventories are under
+`artifacts/reproducibility/`.
+
+Only normalized beta=1 is published as this repository's repaired reference.
+The non-normalized beta=1--5 checkpoints are not published here. Results from
+selecting the best of beta 1--5 must be identified as a tuned performance
+upper bound rather than silently replacing the default beta=1 configuration.
 
 
-**Decaying entropy weight.** As described in the Pensieve paper, "the entropy factor $\beta$ is controlled to decay from 1 to 0.1 over $10^5$ iterations". However,  this value is constant during training in the original code (`ENTROPY_WEIGHT = 0.5` in `sim/a3c.py`). I used a stepwise method to decrease the entropy weight (by 0.09 every 10000 iterations). This is implemented by modifying `sim/a3c.py` and `sim/multi_agent.py`. In detail, the entropy weight is set as a `placeholder` in `a3c.py` to make it changeable. During training, `multi_agent.py` adjusts its value according to the number of epochs, and passes the value to `a3c.py`. The initial entropy factor is set by `BETA` in `multi_agent.py`.
+
+**Decaying entropy weight.** As described in the Pensieve paper, "the entropy factor $\beta$ is controlled to decay from 1 to 0.1 over $10^5$ iterations". However, this value is constant during training in the original code (`ENTROPY_WEIGHT = 0.5` in `sim/a3c.py`). This repository uses a stepwise schedule that reduces the initial beta to 0.1 over 100,000 updates. The entropy weight is represented by a TensorFlow placeholder in `sim/a3c.py`; `sim/multi_agent.py` computes and supplies its value for each update. Select the initial value explicitly with the required `--beta` command-line argument.
 
 
-**States and rewards normalization.** To adapt the model to higher bandwidth or bitrate (e.g., tens of Mbps), the input throughput and chunk size features are divided by 10 for normalization in both training and testing. The reward is normalized in the same way during training. This is controlled by `NORMALIZED` in `sim/multi_agent.py`, `sim/rl_test.py` and `test/rl_no_training.py`.
+**States and rewards normalization.** To adapt the model to higher bandwidth or bitrate (e.g., tens of Mbps), the input throughput and chunk size features are divided by 10 for normalization in both training and testing. The reward is normalized in the same way. Select the mode explicitly with the required `--normalized` command-line argument; training passes the same value to held-out evaluation.
 
 
 **Network traces.** Four classes of wireless bandwidth traces are used in training and testing, collected in 3G, 4G, 5G, and Wi-Fi networks. Each class of traces is further divided into several types, depending on the location or mobility. I further filter out traces  (see `retrained_info/data_preprocess/filtered_traces.py`) whose average bandwidth is less than 1.5Mbps (because the lowest video bitrate is 1Mbps), mainly in the Norway FCC dataset. Final traces are provided in `retrained_info/data_preprocess/network_traces.zip`. 
@@ -76,7 +115,16 @@ Training and test set distribution (average trace bandwidth):
 
 ## Retrained model information
 
-The model is training for 109,900 iterations, taking 7 hours and 44 minutes. 
+The repaired public reference is
+`retrained_info/retrained_model/beta-1_normalized_ep_110000.ckpt`. It was
+trained from scratch with seed 42, 16 CPU A3C agents, and held-out testing
+every 100 updates. Component hashes, environment versions, trace-manifest
+hash, training commit, and removed historical checkpoint hashes are recorded
+in `retrained_info/reproduction_manifest.json` and
+`retrained_info/REPRODUCIBILITY.md`.
+
+The 109,900-iteration curves below belong to the superseded historical model
+and are retained only for provenance.
 
 <p align="left">
     <img src="retrained_info/training_info/training_reward.png" width="60%">
@@ -88,7 +136,11 @@ The model is training for 109,900 iterations, taking 7 hours and 44 minutes.
 
 ## Testing results
 
-BBA ("sim_bb") and RobustMPC ("sim_mpc") are evaluated on the same test set. It can be seen that the retrained Pensieve model ("sim_rl") successfully outperforms these two algorithms, in terms of the average QoE score (5.7% to 28.9% higher). 
+The figures below compare the superseded historical model with BBA and
+RobustMPC. Because that model was trained with the incorrect sixth input,
+the earlier “5.7% to 28.9% higher” statement is not a result of the repaired
+implementation and must not be cited as such. This repository does not report
+a replacement comparison for the repaired model.
 
 <p align="left">
     <img src="retrained_info/test_results/mean_rewards_109900.png" width="40%">

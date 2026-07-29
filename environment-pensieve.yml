@@ -1,0 +1,12 @@
+name: pensieve-retrain
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - pip
+  - pip:
+      - numpy==1.17.2
+      - protobuf==3.20.3
+      - tensorflow==1.15.2
+      - tflearn==0.3.2
+      - pytest==7.4.4
