@@ -30,6 +30,7 @@ The original project changes were concentrated in three folders:
 - `retrained_info/`: information related to the retrained model, including:
   - `data_preprocess/`: network traces; scripts to filter and split the dataset (network traces)
   - `retrained_model/`: retrained model files
+  - `training_info/`: complete training metrics and held-out summaries for all six formal runs
   - `test_results/`: performance of the retrained model versus BBA and RobustMPC
 
 
@@ -114,6 +115,9 @@ every 100 updates. Component hashes, environment versions, trace-manifest
 hash, training commit, and removed historical checkpoint hashes are recorded
 in `retrained_info/reproduction_manifest.json` and
 `retrained_info/REPRODUCIBILITY.md`.
+
+Complete central-agent metrics and held-out summaries for all six formal runs
+are packaged in `retrained_info/training_info/training_log.zip`.
 
 ## Testing results
 

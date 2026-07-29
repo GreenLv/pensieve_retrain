@@ -47,6 +47,14 @@ Prefix:
 records the exact environment inventory, suite-manifest hash, and hashes of
 the removed erroneous checkpoint.
 
+## Training logs
+
+`retrained_info/training_info/training_log.zip` contains `central.log` and
+`heldout_summary.tsv` for each of the six formal runs. Every central log covers
+epochs 1 through 110,000, and every held-out summary contains the header plus
+1,100 evaluations at 100-update intervals. The archive SHA-256 is recorded in
+`reproduction_manifest.json`.
+
 ## Verification
 
 The six-model suite completed all 110,000 updates without NaN/Inf. The

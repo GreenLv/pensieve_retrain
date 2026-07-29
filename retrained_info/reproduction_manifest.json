@@ -17,6 +17,23 @@
       "size": 264515
     }
   ],
+  "training_logs": {
+    "path": "retrained_info/training_info/training_log.zip",
+    "sha256": "13fbc3e1513afac2cfab8dd2df5a16090af91693f5b9f92a3f626d8799ce2f8e",
+    "size": 23666989,
+    "models": [
+      "beta-1",
+      "beta-2",
+      "beta-3",
+      "beta-4",
+      "beta-5",
+      "beta-1_normalized"
+    ],
+    "files_per_model": [
+      "central.log",
+      "heldout_summary.tsv"
+    ]
+  },
   "environment": {
     "packages": {
       "Keras-Applications": "1.0.8",
