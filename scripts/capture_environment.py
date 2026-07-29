@@ -25,7 +25,6 @@ def main():
         for distribution in pkg_resources.working_set
     }
     record = {
-        'executable': sys.executable,
         'python_version': sys.version,
         'platform': platform.platform(),
         'packages': dict(sorted(packages.items(), key=lambda item: item[0].lower())),

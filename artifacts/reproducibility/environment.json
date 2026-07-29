@@ -1,5 +1,4 @@
 {
-  "executable": "C:\\Users\\green\\miniconda3\\envs\\pensieve-retrain\\python.exe",
   "packages": {
     "Keras-Applications": "1.0.8",
     "Keras-Preprocessing": "1.1.2",
