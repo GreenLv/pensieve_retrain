@@ -1,0 +1,33 @@
+{
+  "contract": {
+    "claim": "The plot reports the corrected normalized beta=1 training trajectory.",
+    "experimental_unit": "one synchronous training update aggregated across 16 agents",
+    "uncertainty": "none; the red line is a trailing arithmetic mean, not an uncertainty interval"
+  },
+  "figure_size_inches": [
+    6.5,
+    3.4
+  ],
+  "matplotlib_version": "3.5.3",
+  "outputs": [
+    {
+      "path": "beta-1_normalized_training_reward.pdf",
+      "sha256": "b837ad228de7ac259813f6764bb0381ac89eb71a49810b553d7a5168ec18b65f",
+      "size": 173017
+    },
+    {
+      "path": "beta-1_normalized_training_reward.png",
+      "sha256": "ba95a0b4e943a9d408a62a5f99c7744fdae398c96ce6b45a1a64122bbe99db0b",
+      "size": 141618
+    }
+  ],
+  "raster_dpi": 300,
+  "schema": "pensieve.figure.v1",
+  "sources": [
+    {
+      "path": "artifacts/runs/formal/beta-1_normalized/central.log",
+      "sha256": "f6f6b57cc95f81eb8ed82ec769c7b1a692c47e73b977547d26d5c61849b4caa0",
+      "size": 15322712
+    }
+  ]
+}

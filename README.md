@@ -6,8 +6,6 @@
 > `state[5, -1]`. The old checkpoint has been removed from the active path.
 > The corrected, from-scratch normalized beta=1 reference reached 110,000
 > updates and is published with a machine-readable reproduction manifest.
-> Historical figures remain provenance only and are not evidence for the
-> repaired implementation.
 
 This repository provides a reproducible method for retraining the [Pensieve](http://web.mit.edu/pensieve/) model, including the following improvements based on the original Pensieve code:
 
@@ -123,26 +121,13 @@ hash, training commit, and removed historical checkpoint hashes are recorded
 in `retrained_info/reproduction_manifest.json` and
 `retrained_info/REPRODUCIBILITY.md`.
 
-The 109,900-iteration curves below belong to the superseded historical model
-and are retained only for provenance.
+The figures below are derived from this corrected run. The training curve shows
+every update reward and its trailing 1,000-update mean. The held-out curve
+shows the mean total reward per session and the descriptive 5th--95th
+percentile envelope across the 100 frozen held-out traces, evaluated every 100
+updates.
 
 <p align="left">
-    <img src="retrained_info/training_info/training_reward.png" width="60%">
-    <img src="retrained_info/training_info/training_loss.png" width="60%">
-</p>
-
-
-
-
-## Testing results
-
-The figures below compare the superseded historical model with BBA and
-RobustMPC. Because that model was trained with the incorrect sixth input,
-the earlier “5.7% to 28.9% higher” statement is not a result of the repaired
-implementation and must not be cited as such. This repository does not report
-a replacement comparison for the repaired model.
-
-<p align="left">
-    <img src="retrained_info/test_results/mean_rewards_109900.png" width="40%">
-    <img src="retrained_info/test_results/reward_cdf_109900.png" width="40%">
+    <img src="retrained_info/training_info/beta-1_normalized_training_reward.png" width="60%">
+    <img src="retrained_info/training_info/beta-1_normalized_heldout_reward.png" width="60%">
 </p>

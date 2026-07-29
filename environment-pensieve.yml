@@ -6,6 +6,7 @@ dependencies:
   - pip
   - pip:
       - numpy==1.17.2
+      - matplotlib==3.5.3
       - protobuf==3.20.3
       - tensorflow==1.15.2
       - tflearn==0.3.2
